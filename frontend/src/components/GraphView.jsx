@@ -98,7 +98,39 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
     }
   }, [focusNodeId, safeData]);
 
+  // Compute set of highlighted nodes & links when hovering a node
+  const { highlightNodes, highlightLinks } = React.useMemo(() => {
+    const hNodes = new Set();
+    const hLinks = new Set();
+
+    if (hoveredNode) {
+      hNodes.add(String(hoveredNode.id));
+      safeData.links.forEach((link) => {
+        const srcId = String(link.source?.id ?? link.source);
+        const tgtId = String(link.target?.id ?? link.target);
+        if (srcId === String(hoveredNode.id) || tgtId === String(hoveredNode.id)) {
+          hLinks.add(link);
+          hNodes.add(srcId);
+          hNodes.add(tgtId);
+        }
+      });
+    }
+
+    return { highlightNodes: hNodes, highlightLinks: hLinks };
+  }, [hoveredNode, safeData]);
+
+  // Responsive width observer
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setWidth(entry.contentRect.width || 800);
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
   // Fit to view & configure D3 forces on data load
+
   useEffect(() => {
     if (fgRef.current && safeData.nodes.length > 0) {
       setTimeout(() => {
