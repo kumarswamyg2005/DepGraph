@@ -130,7 +130,11 @@ export function BlastRadius() {
                   runForUser(u);
                 }
               }}
+              onSubmit={(u) => {
+                runForUser(u);
+              }}
             />
+
           </div>
           <button
             id="btn-blast-radius-run"

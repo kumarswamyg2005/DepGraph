@@ -19,7 +19,7 @@ function useDebounce(value, delay) {
  *   value: string
  *   onChange: (val) => void
  */
-export function SearchPanel({ mode = 'package', onSelect, placeholder, value, onChange }) {
+export function SearchPanel({ mode = 'package', onSelect, placeholder, value, onChange, onSubmit }) {
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -58,9 +58,10 @@ export function SearchPanel({ mode = 'package', onSelect, placeholder, value, on
   function select(item) {
     const label = mode === 'package' ? (item.p?.name || item.name) : (item.d?.username || item.username);
     onChange(label);
-    onSelect(item);
+    if (onSelect) onSelect(item);
     setOpen(false);
     setResults([]);
+    if (onSubmit) onSubmit(label);
   }
 
   return (
@@ -73,6 +74,12 @@ export function SearchPanel({ mode = 'package', onSelect, placeholder, value, on
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => results.length > 0 && setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              setOpen(false);
+              if (onSubmit) onSubmit(value);
+            }
+          }}
           autoComplete="off"
         />
         {loading && (
@@ -81,6 +88,7 @@ export function SearchPanel({ mode = 'package', onSelect, placeholder, value, on
           </div>
         )}
       </div>
+
 
       {open && results.length > 0 && (
         <div className="absolute z-50 w-full mt-1 panel shadow-2xl overflow-auto max-h-60">

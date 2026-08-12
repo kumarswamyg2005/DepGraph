@@ -111,9 +111,16 @@ export function PackageExplorer() {
                   placeholder="e.g. wexa-core"
                   onSelect={(item) => {
                     const n = item.p?.name || item.name;
-                    if (n) setDepQuery(n);
+                    if (n) {
+                      setDepQuery(n);
+                      runTransitiveDepsFor(n);
+                    }
+                  }}
+                  onSubmit={(val) => {
+                    runTransitiveDepsFor(val);
                   }}
                 />
+
               </div>
               <button
                 id="btn-transitive-run"
