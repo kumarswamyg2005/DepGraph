@@ -116,21 +116,27 @@ export function Home() {
               </thead>
               <tbody>
                 {topPkgs.map((pkg, i) => (
-                  <tr key={pkg.id}>
+                  <tr
+                    key={pkg.id}
+                    className="cursor-pointer hover:bg-bg-subtle/50 transition-colors"
+                    onClick={() => window.location.href = `/packages?name=${encodeURIComponent(pkg.name)}`}
+                  >
                     <td className="text-text-dim font-mono text-xs">{i + 1}</td>
                     <td>
-                      <span className="font-mono text-xs text-text-primary">{pkg.name}</span>
+                      <span className="font-mono text-xs text-text-primary font-medium hover:underline">{pkg.name}</span>
                     </td>
                     <td><EcoBadge ecosystem={pkg.ecosystem} /></td>
-                    <td className="font-mono text-xs text-warn">{pkg.transitiveDepCount}</td>
+                    <td className="font-mono text-xs text-warn font-semibold">{pkg.transitiveDepCount}</td>
                     <td>
-                      <span className={`font-mono text-xs ${pkg.maintainerCount === 1 ? 'text-risk' : 'text-safe'}`}>
+                      <span className={`font-mono text-xs ${pkg.maintainerCount === 1 ? 'text-risk font-semibold' : 'text-safe'}`}>
                         {pkg.maintainerCount}
+                        {pkg.maintainerCount === 1 && ' ⚠'}
                       </span>
                     </td>
                   </tr>
                 ))}
               </tbody>
+
             </table>
           )}
         </div>
