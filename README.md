@@ -283,9 +283,22 @@ congodb/
 
 ---
 
-## Hosted Demo
+## Hosted Live Demo
 
-- **Frontend:** [Deploy to Vercel](https://vercel.com) — `vercel --prod` from `/frontend`
-- **Backend:** [Deploy to Render](https://render.com) — set env vars in dashboard, deploy from `/backend`
+- **Live Application (Vercel):** [https://frontend-ten-rose-81.vercel.app](https://frontend-ten-rose-81.vercel.app)
+- **Backend API Health Check (Vercel):** [https://backend-psi-ivory-26.vercel.app/api/health](https://backend-psi-ivory-26.vercel.app/api/health)
+- **GitHub Repository:** [https://github.com/kumarswamyg2005/DepGraph.git](https://github.com/kumarswamyg2005/DepGraph.git)
+
+---
+
+## Deployment Guide
+
+### Vercel (Frontend & Backend Serverless)
+- **Frontend Deployment:** Run `vercel --prod` from `/frontend`. Set `VITE_API_URL=https://backend-psi-ivory-26.vercel.app`.
+- **Backend Deployment:** Run `vercel --prod` from `/backend`. Set `COGNODB_URI`, `COGNODB_USER`, and `COGNODB_PASSWORD` in Vercel project environment variables.
+
+### Render (Standalone Node Service)
+- **Backend Service:** Connect `/backend` directory on [Render.com](https://render.com). Build command `npm install`, Start command `npm start`. Add `COGNODB_URI`, `COGNODB_USER`, and `COGNODB_PASSWORD` to environment.
 
 > Keep the CognoDB instance running post-submission.
+

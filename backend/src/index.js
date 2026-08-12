@@ -10,11 +10,20 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Middleware ────────────────────────────────────────────────────────────────
-app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
-  methods: ['GET', 'POST'],
-}));
+app.use(cors());
 app.use(express.json());
+
+// Auto-initialize driver middleware for serverless/standalone environments
+let driverInitPromise = null;
+app.use(async (req, res, next) => {
+  if (getStatus() !== 'connected') {
+    if (!driverInitPromise) {
+      driverInitPromise = initDriver();
+    }
+    await driverInitPromise;
+  }
+  next();
+});
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
@@ -37,19 +46,19 @@ app.use((req, res) => {
 });
 
 // ── Error handler ─────────────────────────────────────────────────────────────
-// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error('[server] Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
-async function boot() {
-  await initDriver();
-  app.listen(PORT, () => {
-    console.log(`[server] Listening on http://localhost:${PORT}`);
-    console.log(`[server] DB status: ${getStatus()}`);
+// Start listening if running standalone server (Render / Local)
+if (!process.env.VERCEL) {
+  initDriver().then(() => {
+    app.listen(PORT, () => {
+      console.log(`[server] Listening on http://localhost:${PORT}`);
+      console.log(`[server] DB status: ${getStatus()}`);
+    });
   });
 }
 
-boot();
+export default app;
