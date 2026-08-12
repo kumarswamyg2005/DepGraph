@@ -4,15 +4,33 @@
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github)](https://github.com/kumarswamyg2005/DepGraph)
 [![Database](https://img.shields.io/badge/GraphDB-CognoDB%2FNeo4j-008CC1?style=for-the-badge&logo=neo4j)](https://cognodb.com)
 
-**DepGraph** is a graph-powered security dashboard I designed and built to uncover open-source software supply chain vulnerabilities: multi-hop transitive dependency closures, single-maintainer "Bus Factor" risks, and account compromise blast-radius analysis — all powered by **CognoDB (Neo4j)** and **Cypher**.
+---
+
+## 🎯 Assignment Submission & Selected Idea Overview
+
+- **Applicant Name:** Kumaraswamy
+- **GitHub Repository:** [https://github.com/kumarswamyg2005/DepGraph.git](https://github.com/kumarswamyg2005/DepGraph.git)
+- **CognoDB Instance ID:** `db-a44a7657`
+- **CognoDB Connection URI:** `bolt+s://db-a44a7657.databases.cognodb.com:7687`
+
+### 💡 Application Idea: Open Source Supply-Chain Trust & Risk Graph (`DepGraph`)
+
+For this assignment, I chose to build **DepGraph**, a security dashboard designed to model and analyze software supply chain dependencies, developer maintainership, single-point-of-failure risks ("Bus Factor"), and account compromise blast-radius.
+
+#### Why I chose this idea:
+Modern software relies heavily on open-source packages (`npm`, `pypi`). Evaluating transitive risk, single-maintainer bottlenecks, and cascading vulnerability surfaces across multi-hop dependencies is inherently a **graph problem**:
+
+- **In Relational Databases (SQL)**: Finding transitive dependencies requires recursive CTEs (`WITH RECURSIVE`) with no native path semantics and join explosions.
+- **In Graph Databases (Cypher / CognoDB)**: Traversing variable-length dependency chains (`DEPENDS_ON*1..5`) and cross-entity maintainer relationships (`MAINTAINS`) is a single, intuitive pattern match.
 
 ---
 
 ## 🌐 Live Production Demos
 
-- **Live Frontend (Vercel):** [https://frontend-ten-rose-81.vercel.app](https://frontend-ten-rose-81.vercel.app)
+- **Live Application (Vercel):** [https://frontend-ten-rose-81.vercel.app](https://frontend-ten-rose-81.vercel.app)
 - **Live Backend API (Vercel Serverless):** [https://backend-psi-ivory-26.vercel.app/api/health](https://backend-psi-ivory-26.vercel.app/api/health)
 - **GitHub Repository:** [https://github.com/kumarswamyg2005/DepGraph.git](https://github.com/kumarswamyg2005/DepGraph.git)
+
 
 ---
 
