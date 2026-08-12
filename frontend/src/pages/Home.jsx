@@ -143,27 +143,62 @@ export function Home() {
 
         {/* Bus factor alerts */}
         <div className="panel">
-          <div className="px-4 py-3" style={{ borderBottom: '1px solid #1e1e2e' }}>
-            <div className="text-xs font-semibold text-text-primary">Bus Factor Alerts</div>
-            <div className="text-2xs text-text-dim font-mono mt-0.5">single-maintainer critical packages</div>
+          <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid #1e1e2e' }}>
+            <div>
+              <div className="text-xs font-semibold text-text-primary">Bus Factor Alerts</div>
+              <div className="text-2xs text-text-dim font-mono mt-0.5">single-maintainer critical packages</div>
+            </div>
+            <Link to="/bus-factor" className="text-2xs text-risk hover:underline font-mono font-medium">
+              view all ({busFactor.length}) →
+            </Link>
           </div>
           {loading ? (
             <LoadingSkeleton rows={5} />
           ) : (
             <div className="divide-y" style={{ borderColor: '#1e1e2e' }}>
               {busFactor.map((pkg) => (
-                <div key={pkg.id} className="px-4 py-3 hover:bg-bg-raised transition-colors">
+                <div
+                  key={pkg.id}
+                  className="px-4 py-3 hover:bg-bg-raised transition-colors cursor-pointer group"
+                  onClick={() => window.location.href = `/bus-factor`}
+                >
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="font-mono text-xs text-text-primary truncate">{pkg.name}</span>
+                    <span
+                      className="font-mono text-xs text-text-primary font-semibold group-hover:text-safe transition-colors truncate"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.location.href = `/packages?name=${encodeURIComponent(pkg.name)}`;
+                      }}
+                      title="Explore Dependency Graph"
+                    >
+                      {pkg.name}
+                    </span>
                     <RiskBadge level="high" />
                   </div>
-                  <div className="flex items-center gap-2 text-2xs text-text-dim font-mono">
-                    <EcoBadge ecosystem={pkg.ecosystem} />
-                    <span>sole maintainer: <span className="text-warn">{pkg.soloMaintainer}</span></span>
+                  <div className="flex items-center justify-between gap-2 text-2xs font-mono">
+                    <div className="flex items-center gap-2 text-text-dim">
+                      <EcoBadge ecosystem={pkg.ecosystem} />
+                      <span>
+                        sole maintainer:{' '}
+                        <button
+                          className="text-warn hover:underline font-semibold"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = `/blast-radius?username=${encodeURIComponent(pkg.soloMaintainer)}`;
+                          }}
+                          title="Analyze Blast Radius for this maintainer"
+                        >
+                          {pkg.soloMaintainer}
+                        </button>
+                      </span>
+                    </div>
+                    <span className="text-info opacity-0 group-hover:opacity-100 transition-opacity">
+                      View →
+                    </span>
                   </div>
                   {pkg.dependentRepoCount > 0 && (
                     <div className="text-2xs text-text-dim font-mono mt-0.5">
-                      {pkg.dependentRepoCount} repo{pkg.dependentRepoCount !== 1 ? 's' : ''} depend on this
+                      <span className="text-risk font-semibold">{pkg.dependentRepoCount}</span> repo{pkg.dependentRepoCount !== 1 ? 's' : ''} depend on this
                     </div>
                   )}
                 </div>
@@ -176,6 +211,7 @@ export function Home() {
             </div>
           )}
         </div>
+
       </div>
 
       {/* Graph explanation */}
