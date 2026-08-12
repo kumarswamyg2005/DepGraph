@@ -25,6 +25,22 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// ── Root Info ─────────────────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.json({
+    message: 'DepGraph OSS Supply-Chain Trust API Server',
+    status: getStatus(),
+    endpoints: {
+      health: '/api/health',
+      packages: '/api/packages',
+      developers: '/api/developers',
+      busFactor: '/api/queries/bus-factor',
+      transitiveDeps: '/api/queries/transitive-deps?name=wexa-core',
+      blastRadius: '/api/queries/blast-radius?username=ghost-maintainer',
+    },
+  });
+});
+
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
   const status = getStatus();
@@ -34,6 +50,7 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
 
 // ── Routers ───────────────────────────────────────────────────────────────────
 app.use('/api/packages', packagesRouter);
