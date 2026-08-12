@@ -295,8 +295,16 @@ RETURN nodes(path), length(path)`}
         {/* Right: graph */}
         <div className="col-span-3 space-y-3">
           {selectedNode && (
-            <NodeDetail node={selectedNode} onClose={() => setSelectedNode(null)} />
+            <NodeDetail
+              node={selectedNode}
+              onClose={() => setSelectedNode(null)}
+              onExplore={(pkgName) => {
+                setDepQuery(pkgName);
+                runTransitiveDepsFor(pkgName);
+              }}
+            />
           )}
+
           {graphLoading && <LoadingSkeleton type="graph" />}
           {!graphLoading && !graphData && (
             <div className="graph-container flex items-center justify-center" style={{ height: 520 }}>

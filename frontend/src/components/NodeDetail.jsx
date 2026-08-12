@@ -1,12 +1,13 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { EcoBadge, RiskBadge } from './StatusBadge';
 
 /**
  * NodeDetail — sidebar panel showing clicked graph node details
  */
-export function NodeDetail({ node, onClose }) {
+export function NodeDetail({ node, onClose, onExplore }) {
   const navigate = useNavigate();
+  const location = useLocation();
   if (!node) return null;
 
   const colorMap = {
@@ -69,10 +70,17 @@ export function NodeDetail({ node, onClose }) {
 
           <div className="pt-2">
             <button
-              className="btn btn-primary w-full text-xs font-mono py-1.5 flex items-center justify-center gap-1.5"
+              className="btn btn-primary w-full text-xs font-mono py-1.5 flex items-center justify-center gap-1.5 cursor-pointer shadow-md hover:brightness-110 active:scale-[0.98] transition-all"
               onClick={() => {
                 const name = node.name || node.id;
-                if (name) navigate(`/packages?name=${encodeURIComponent(name)}`);
+                if (!name) return;
+                if (onExplore) {
+                  onExplore(name);
+                }
+                const targetUrl = `/packages?name=${encodeURIComponent(name)}`;
+                if (location.pathname + location.search !== targetUrl) {
+                  navigate(targetUrl);
+                }
               }}
             >
               <span>Explore Dependency Graph</span>
@@ -104,10 +112,12 @@ export function NodeDetail({ node, onClose }) {
 
           <div className="pt-2">
             <button
-              className="btn border border-info/40 text-info hover:bg-info/10 w-full text-xs font-mono py-1.5 flex items-center justify-center gap-1.5"
+              className="btn border border-info/40 text-info hover:bg-info/10 w-full text-xs font-mono py-1.5 flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-[0.98] transition-all"
               onClick={() => {
                 const devName = node.name || node.username || node.soloMaintainer || node.id;
-                if (devName) navigate(`/blast-radius?username=${encodeURIComponent(devName)}`);
+                if (!devName) return;
+                const targetUrl = `/blast-radius?username=${encodeURIComponent(devName)}`;
+                navigate(targetUrl);
               }}
             >
               <span>Analyze Blast Radius</span>
@@ -126,4 +136,5 @@ export function NodeDetail({ node, onClose }) {
     </div>
   );
 }
+
 
