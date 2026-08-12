@@ -1,6 +1,6 @@
 # DepGraph — Open Source Supply-Chain Trust & Risk Graph
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-000000?style=for-the-badge&logo=vercel)](https://frontend-ten-rose-81.vercel.app)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-000000?style=for-the-badge&logo=vercel)](https://dep-graph-five.vercel.app/)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github)](https://github.com/kumarswamyg2005/DepGraph)
 [![Database](https://img.shields.io/badge/GraphDB-CognoDB%2FNeo4j-008CC1?style=for-the-badge&logo=neo4j)](https://cognodb.com)
 
@@ -27,9 +27,10 @@ Modern software relies heavily on open-source packages (`npm`, `pypi`). Evaluati
 
 ## 🌐 Live Production Demos
 
-- **Live Application (Vercel):** [https://frontend-ten-rose-81.vercel.app](https://frontend-ten-rose-81.vercel.app)
-- **Live Backend API (Vercel Serverless):** [https://backend-psi-ivory-26.vercel.app/api/health](https://backend-psi-ivory-26.vercel.app/api/health)
+- **Live Application (Vercel Frontend):** [https://dep-graph-five.vercel.app/](https://dep-graph-five.vercel.app/)
+- **Live Backend API (Render):** [https://depgraph-ebn8.onrender.com/api/health](https://depgraph-ebn8.onrender.com/api/health)
 - **GitHub Repository:** [https://github.com/kumarswamyg2005/DepGraph.git](https://github.com/kumarswamyg2005/DepGraph.git)
+
 
 
 ---
@@ -211,14 +212,18 @@ npm run dev
 ### Deploying Frontend to Vercel
 1. Import repository on [Vercel](https://vercel.com).
 2. Set Root Directory: `frontend`
-3. Environment Variable: `VITE_API_URL` = `https://backend-psi-ivory-26.vercel.app` (or your Render URL).
+3. Set Environment Variable: `VITE_API_URL` = `https://depgraph-ebn8.onrender.com`.
 4. Build command: `npm run build`, Output Directory: `dist`.
 
 ### Deploying Backend to Render
 1. Create a **Web Service** on [Render.com](https://render.com) connecting the repo.
 2. Root Directory: `backend`
 3. Build Command: `npm install`, Start Command: `npm start`.
-4. Add `COGNODB_URI`, `COGNODB_USER`, `COGNODB_PASSWORD` environment variables.
+4. Add environment variables:
+   - `COGNODB_URI`: `bolt+s://db-a44a7657.databases.cognodb.com:7687`
+   - `COGNODB_USER`: `cognodb`
+   - `COGNODB_PASSWORD`: `ab10778e3941320a3b1843ca1166aa37`
+
 
 ---
 
