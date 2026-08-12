@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: depgraph-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: COGNODB_URI
+        value: bolt+s://db-a44a7657.databases.cognodb.com:7687
+      - key: COGNODB_USER
+        value: cognodb
+      - key: COGNODB_PASSWORD
+        value: ab10778e3941320a3b1843ca1166aa37
+      - key: FRONTEND_ORIGIN
+        value: "*"
