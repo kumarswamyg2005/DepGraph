@@ -19,8 +19,14 @@ export async function initDriver() {
     return;
   }
 
+  let cleanUri = uri.trim();
+  if (cleanUri.startsWith('olt+s://')) {
+    cleanUri = 'b' + cleanUri;
+  }
+
   try {
-    driver = neo4j.driver(uri, neo4j.auth.basic(user, password), {
+    driver = neo4j.driver(cleanUri, neo4j.auth.basic(user, password), {
+
       maxConnectionLifetime: 3 * 60 * 60 * 1000, // 3h
       maxConnectionPoolSize: 50,
       connectionAcquisitionTimeout: 30_000,
