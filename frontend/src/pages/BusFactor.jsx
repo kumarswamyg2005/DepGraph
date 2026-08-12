@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getBusFactor, getTopPackages } from '../lib/api';
 import { LoadingSkeleton, EmptyState, ErrorState, DbUnavailableState } from '../components/LoadingSkeleton';
 import { EcoBadge, RiskBadge } from '../components/StatusBadge';
@@ -7,6 +8,7 @@ import { NodeDetail } from '../components/NodeDetail';
 import { useDbStatus } from '../hooks/useDbStatus';
 
 export function BusFactor() {
+  const navigate = useNavigate();
   const { connected } = useDbStatus();
   const [busData, setBusData] = useState([]);
   const [topData, setTopData] = useState([]);
@@ -105,13 +107,14 @@ ORDER BY dependentRepoCount DESC`}
                         <th>Eco</th>
                         <th>Sole Maintainer</th>
                         <th>Repo Deps</th>
+                        <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {busData.map((pkg) => (
                         <tr
                           key={pkg.id}
-                          className="cursor-pointer"
+                          className="cursor-pointer hover:bg-bg-subtle/50 transition-colors"
                           onClick={() =>
                             setSelectedNode({
                               id: pkg.id,
@@ -126,16 +129,28 @@ ORDER BY dependentRepoCount DESC`}
                           <td>
                             <div className="flex items-center gap-2">
                               <span className="w-1.5 h-1.5 rounded-full bg-risk flex-shrink-0" />
-                              <span className="font-mono text-xs text-text-primary truncate max-w-[120px]">
+                              <span className="font-mono text-xs text-text-primary truncate max-w-[110px]">
                                 {pkg.name}
                               </span>
                             </div>
                           </td>
                           <td><EcoBadge ecosystem={pkg.ecosystem} /></td>
-                          <td className="font-mono text-xs text-warn truncate max-w-[80px]">
+                          <td className="font-mono text-xs text-warn truncate max-w-[70px]">
                             {pkg.soloMaintainer}
                           </td>
                           <td className="font-mono text-xs text-risk">{pkg.dependentRepoCount}</td>
+                          <td>
+                            <button
+                              className="text-2xs font-mono text-info hover:underline px-1.5 py-0.5 rounded bg-info/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/packages?name=${encodeURIComponent(pkg.name)}`);
+                              }}
+                              title="View Dependency Graph"
+                            >
+                              Graph →
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -161,18 +176,43 @@ ORDER BY dependentRepoCount DESC`}
                       <th>Package</th>
                       <th>Trans. Deps</th>
                       <th>Maintainers</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {topData.map((pkg) => (
-                      <tr key={pkg.id}>
-                        <td className="font-mono text-xs text-text-primary truncate max-w-[120px]">{pkg.name}</td>
+                      <tr
+                        key={pkg.id}
+                        className="cursor-pointer hover:bg-bg-subtle/50 transition-colors"
+                        onClick={() =>
+                          setSelectedNode({
+                            id: pkg.id,
+                            name: pkg.name,
+                            type: 'Package',
+                            ecosystem: pkg.ecosystem,
+                            version: pkg.version,
+                          })
+                        }
+                      >
+                        <td className="font-mono text-xs text-text-primary truncate max-w-[110px]">{pkg.name}</td>
                         <td className="font-mono text-xs text-warn">{pkg.transitiveDepCount}</td>
                         <td>
                           <span className={`font-mono text-xs ${pkg.maintainerCount === 1 ? 'text-risk' : 'text-safe'}`}>
                             {pkg.maintainerCount}
                             {pkg.maintainerCount === 1 && ' ⚠'}
                           </span>
+                        </td>
+                        <td>
+                          <button
+                            className="text-2xs font-mono text-info hover:underline px-1.5 py-0.5 rounded bg-info/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/packages?name=${encodeURIComponent(pkg.name)}`);
+                            }}
+                            title="View Dependency Graph"
+                          >
+                            Graph →
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -190,6 +230,7 @@ ORDER BY dependentRepoCount DESC`}
                 height={580}
                 onNodeClick={setSelectedNode}
                 busFactorIds={busFactorIds}
+                focusNodeId={selectedNode?.id}
               />
             ) : (
               <div className="graph-container flex items-center justify-center" style={{ height: 580 }}>
@@ -203,3 +244,4 @@ ORDER BY dependentRepoCount DESC`}
     </div>
   );
 }
+

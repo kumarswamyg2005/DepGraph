@@ -1,10 +1,12 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { EcoBadge, RiskBadge } from './StatusBadge';
 
 /**
  * NodeDetail — sidebar panel showing clicked graph node details
  */
 export function NodeDetail({ node, onClose }) {
+  const navigate = useNavigate();
   if (!node) return null;
 
   const colorMap = {
@@ -15,8 +17,11 @@ export function NodeDetail({ node, onClose }) {
   };
   const color = colorMap[node.type] || 'text-text-muted';
 
+  const isPackage = node.type === 'Package' || node.busFactor || (node.name && !node.fullName && !node.github_url);
+  const isDeveloper = node.type === 'Developer' || node.soloMaintainer || node.github_url;
+
   return (
-    <div className="panel p-4 space-y-3 fade-in">
+    <div className="panel p-4 space-y-3 fade-in border border-border-subtle shadow-xl bg-bg-panel">
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className={`text-2xs font-mono uppercase tracking-widest ${color} mb-1`}>
@@ -37,8 +42,8 @@ export function NodeDetail({ node, onClose }) {
 
       <div className="sep" />
 
-      {/* Package-specific */}
-      {node.type === 'Package' && (
+      {/* Package-specific details */}
+      {isPackage && (
         <div className="space-y-2">
           {node.ecosystem && <EcoBadge ecosystem={node.ecosystem} />}
           {node.version && (
@@ -61,18 +66,31 @@ export function NodeDetail({ node, onClose }) {
               <span className="font-mono text-warn">{node.depth} hops</span>
             </div>
           )}
+
+          <div className="pt-2">
+            <button
+              className="btn btn-primary w-full text-xs font-mono py-1.5 flex items-center justify-center gap-1.5"
+              onClick={() => {
+                const name = node.name || node.id;
+                if (name) navigate(`/packages?name=${encodeURIComponent(name)}`);
+              }}
+            >
+              <span>Explore Dependency Graph</span>
+              <span>→</span>
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Developer-specific */}
-      {node.type === 'Developer' && (
+      {/* Developer-specific details */}
+      {isDeveloper && (
         <div className="space-y-2">
           {node.github_url && (
             <a
               href={node.github_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-mono text-info hover:underline break-all"
+              className="text-xs font-mono text-info hover:underline break-all block"
             >
               {node.github_url}
             </a>
@@ -83,10 +101,23 @@ export function NodeDetail({ node, onClose }) {
               <span className="text-text-primary">{node.fullName}</span>
             </div>
           )}
+
+          <div className="pt-2">
+            <button
+              className="btn border border-info/40 text-info hover:bg-info/10 w-full text-xs font-mono py-1.5 flex items-center justify-center gap-1.5"
+              onClick={() => {
+                const devName = node.name || node.username || node.soloMaintainer || node.id;
+                if (devName) navigate(`/blast-radius?username=${encodeURIComponent(devName)}`);
+              }}
+            >
+              <span>Analyze Blast Radius</span>
+              <span>→</span>
+            </button>
+          </div>
         </div>
       )}
 
-      {/* ID */}
+      {/* Node ID */}
       <div className="pt-1">
         <div className="text-2xs font-mono text-text-dim break-all">
           id: {node.id}
@@ -95,3 +126,4 @@ export function NodeDetail({ node, onClose }) {
     </div>
   );
 }
+

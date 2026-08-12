@@ -40,7 +40,7 @@ function getColor(node, busFactorSet) {
  *   onNodeClick: (node) => void
  *   busFactorIds: string[]  — IDs that get risk halo
  */
-export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds = [] }) {
+export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds = [], focusNodeId = null }) {
   const fgRef = useRef();
   const containerRef = useRef();
   const [width, setWidth] = useState(800);
@@ -79,6 +79,25 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
 
     return { nodes, links };
   }, [graphData]);
+
+  // Automatically focus and center on focusNodeId when changed
+  useEffect(() => {
+    if (!focusNodeId || !fgRef.current || !safeData.nodes.length) return;
+    const targetNode = safeData.nodes.find(
+      (n) =>
+        String(n.id) === String(focusNodeId) ||
+        String(n.name) === String(focusNodeId) ||
+        String(n.id) === `pkg-${focusNodeId}` ||
+        String(n.id) === `dev-${focusNodeId}`
+    );
+
+    if (targetNode && targetNode.x != null && targetNode.y != null) {
+      setHoveredNode(targetNode);
+      fgRef.current.centerAt(targetNode.x, targetNode.y, 450);
+      fgRef.current.zoom(2.2, 450);
+    }
+  }, [focusNodeId, safeData]);
+
 
   // Compute set of highlighted nodes & links when hovering a node
   const { highlightNodes, highlightLinks } = React.useMemo(() => {

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { SearchPanel } from '../components/SearchPanel';
 import { GraphView } from '../components/GraphView';
 import { NodeDetail } from '../components/NodeDetail';
@@ -9,6 +10,7 @@ import { getTransitiveDeps, getDepGraph, getShortestPath } from '../lib/api';
 
 export function PackageExplorer() {
   const { connected } = useDbStatus();
+  const [searchParams] = useSearchParams();
 
   // Query 1 — Transitive Deps
   const [depQuery, setDepQuery] = useState('');
@@ -28,19 +30,28 @@ export function PackageExplorer() {
   const [pathLoading, setPathLoading] = useState(false);
   const [pathError, setPathError] = useState(null);
 
-  if (connected === false) return <DbUnavailableState />;
+  // Auto-run if URL query param ?name= is present
+  useEffect(() => {
+    const nameParam = searchParams.get('name');
+    if (nameParam) {
+      setDepQuery(nameParam);
+      runTransitiveDepsFor(nameParam);
+    }
+  }, [searchParams]);
 
-  async function runTransitiveDeps() {
-    if (!depQuery.trim()) return;
+  async function runTransitiveDepsFor(targetName) {
+    const q = (targetName || depQuery).trim();
+    if (!q) return;
     setDepLoading(true);
     setGraphLoading(true);
     setDepError(null);
     setDepData(null);
     setGraphData(null);
+    setSelectedNode(null);
 
     const [deps, graph] = await Promise.all([
-      getTransitiveDeps(depQuery.trim()),
-      getDepGraph(depQuery.trim()),
+      getTransitiveDeps(q),
+      getDepGraph(q),
     ]);
 
     if (deps.error) setDepError(deps.error);
@@ -51,6 +62,11 @@ export function PackageExplorer() {
     setDepLoading(false);
     setGraphLoading(false);
   }
+
+  async function runTransitiveDeps() {
+    runTransitiveDepsFor(depQuery);
+  }
+
 
   async function runShortestPath() {
     if (!fromPkg.trim() || !toPkg.trim()) return;
@@ -145,13 +161,39 @@ RETURN DISTINCT dep.name, dep.ecosystem`}
                     </thead>
                     <tbody>
                       {depData.map((pkg, i) => (
-                        <tr key={i}>
+                        <tr
+                          key={i}
+                          className="cursor-pointer hover:bg-bg-subtle/50 transition-colors"
+                          onClick={() =>
+                            setSelectedNode({
+                              id: pkg.id || `pkg-${pkg.name}`,
+                              name: pkg.name,
+                              type: 'Package',
+                              ecosystem: pkg.ecosystem,
+                              version: pkg.version,
+                              depth: pkg.depth,
+                            })
+                          }
+                        >
                           <td className="font-mono text-xs text-text-primary">{pkg.name}</td>
                           <td><EcoBadge ecosystem={pkg.ecosystem} /></td>
                           <td className="font-mono text-2xs text-text-dim">
                             {pkg.version ? `v${pkg.version}` : '—'}
                           </td>
                           <td className="font-mono text-xs text-warn">{pkg.depth}</td>
+                          <td>
+                            <button
+                              className="text-2xs font-mono text-info hover:underline px-1.5 py-0.5 rounded bg-info/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDepQuery(pkg.name);
+                                runTransitiveDepsFor(pkg.name);
+                              }}
+                              title="Explore this package graph"
+                            >
+                              Explore →
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -223,9 +265,16 @@ RETURN nodes(path), length(path)`}
                 <div className="flex flex-wrap gap-1 items-center">
                   {(pathData.pathNodes || []).map((node, i) => (
                     <React.Fragment key={i}>
-                      <span className="font-mono text-2xs bg-bg-subtle px-2 py-0.5 rounded text-safe">
+                      <button
+                        className="font-mono text-2xs bg-bg-subtle px-2 py-0.5 rounded text-safe hover:underline hover:bg-safe/10 transition-colors"
+                        onClick={() => {
+                          setDepQuery(node.name);
+                          runTransitiveDepsFor(node.name);
+                        }}
+                        title={`Explore ${node.name}`}
+                      >
                         {node.name}
-                      </span>
+                      </button>
                       {i < pathData.pathNodes.length - 1 && (
                         <span className="text-text-dim text-2xs font-mono">→</span>
                       )}
@@ -263,8 +312,10 @@ RETURN nodes(path), length(path)`}
               graphData={graphData}
               height={520}
               onNodeClick={setSelectedNode}
+              focusNodeId={selectedNode?.id || selectedNode?.name}
             />
           )}
+
           {!graphLoading && depData && depData.length === 0 && !graphData && (
             <EmptyState message="No graph to display" detail="Package has no transitive dependencies" />
           )}
