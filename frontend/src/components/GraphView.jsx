@@ -80,7 +80,7 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
     return { nodes, links };
   }, [graphData]);
 
-  // Automatically focus and center on focusNodeId when changed
+  // Focus node center effect
   useEffect(() => {
     if (!focusNodeId || !fgRef.current || !safeData.nodes.length) return;
     const targetNode = safeData.nodes.find(
@@ -94,41 +94,9 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
     if (targetNode && targetNode.x != null && targetNode.y != null) {
       setHoveredNode(targetNode);
       fgRef.current.centerAt(targetNode.x, targetNode.y, 450);
-      fgRef.current.zoom(2.2, 450);
+      fgRef.current.zoom(1.2, 450);
     }
   }, [focusNodeId, safeData]);
-
-
-  // Compute set of highlighted nodes & links when hovering a node
-  const { highlightNodes, highlightLinks } = React.useMemo(() => {
-    const hNodes = new Set();
-    const hLinks = new Set();
-
-    if (hoveredNode) {
-      hNodes.add(String(hoveredNode.id));
-      safeData.links.forEach((link) => {
-        const srcId = String(link.source?.id ?? link.source);
-        const tgtId = String(link.target?.id ?? link.target);
-        if (srcId === String(hoveredNode.id) || tgtId === String(hoveredNode.id)) {
-          hLinks.add(link);
-          hNodes.add(srcId);
-          hNodes.add(tgtId);
-        }
-      });
-    }
-
-    return { highlightNodes: hNodes, highlightLinks: hLinks };
-  }, [hoveredNode, safeData]);
-
-  // Responsive width observer
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const ro = new ResizeObserver(([entry]) => {
-      setWidth(entry.contentRect.width || 800);
-    });
-    ro.observe(containerRef.current);
-    return () => ro.disconnect();
-  }, []);
 
   // Fit to view & configure D3 forces on data load
   useEffect(() => {
@@ -137,18 +105,16 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
         try {
           if (safeData.nodes.length === 1) {
             fgRef.current.centerAt(0, 0, 400);
-            fgRef.current.zoom(1.8, 400);
+            fgRef.current.zoom(1.1, 400);
           } else {
-            fgRef.current.zoomToFit(400, 60);
+            fgRef.current.zoomToFit(400, 120);
           }
-          // Fine-tune D3 forces for balanced layout
           fgRef.current.d3Force('charge')?.strength(-160);
           fgRef.current.d3Force('link')?.distance(65);
         } catch {}
       }, 400);
     }
   }, [safeData]);
-
 
   // Node renderer with radial glow, pulse animations, and focus dimming
   const drawNode = useCallback(
@@ -161,32 +127,32 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
       const isBusFactor = busFactorSet.has(node.id);
       const isRoot = node.isRoot;
 
-      const r = (NODE_RADIUS[node.type] || 6) * (isHovered ? 1.3 : 1);
+      const scaleFactor = Math.max(1, Math.sqrt(globalScale * 0.8));
+      const r = ((NODE_RADIUS[node.type] || 6) * (isHovered ? 1.25 : 1)) / scaleFactor;
       const color = getColor(node, busFactorSet);
 
       ctx.save();
       ctx.globalAlpha = isHighlighted ? 1.0 : 0.15;
 
       // 1. Outer Radial Glow
-      const glowR = Math.min(r * (isHovered ? 3.0 : isBusFactor || isRoot ? 2.5 : 1.8), 28);
+      const glowR = Math.min(r * (isHovered ? 2.2 : isBusFactor || isRoot ? 2.0 : 1.5), 18);
       const glow = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, glowR);
-      glow.addColorStop(0, `${color}bb`);
-      glow.addColorStop(0.5, `${color}44`);
+      glow.addColorStop(0, `${color}99`);
+      glow.addColorStop(0.5, `${color}33`);
       glow.addColorStop(1, 'transparent');
       ctx.beginPath();
       ctx.arc(node.x, node.y, glowR, 0, 2 * Math.PI);
       ctx.fillStyle = glow;
       ctx.fill();
 
-
       // 2. Animated Radar Pulse Ring for Bus Factor & Root nodes
       if (isBusFactor || isRoot) {
         const pulse = (Math.sin(animTime / 250) + 1) / 2; // 0..1
-        const pulseR = r + 4 + pulse * 6;
+        const pulseR = r + 3 + pulse * 4;
         ctx.beginPath();
         ctx.arc(node.x, node.y, pulseR, 0, 2 * Math.PI);
         ctx.strokeStyle = isBusFactor ? `rgba(255, 68, 68, ${0.8 - pulse * 0.5})` : `rgba(34, 197, 94, ${0.8 - pulse * 0.5})`;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.2;
         ctx.stroke();
       }
 
@@ -228,6 +194,7 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
     },
     [busFactorSet, hoveredNode, highlightNodes, animTime]
   );
+
 
   // Link renderer with dynamic flow animation and hover focus
   const drawLink = useCallback(
