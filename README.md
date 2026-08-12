@@ -1,30 +1,42 @@
-# DepGraph — OSS Supply-Chain Trust Graph
+# DepGraph — Open Source Supply-Chain Trust & Risk Graph
 
-A graph-powered tool for exploring software supply-chain risk: transitive dependencies, bus-factor maintainers, and compromise blast-radius — all modeled as a labeled property graph in CognoDB (Neo4j).
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-000000?style=for-the-badge&logo=vercel)](https://frontend-ten-rose-81.vercel.app)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github)](https://github.com/kumarswamyg2005/DepGraph)
+[![Database](https://img.shields.io/badge/GraphDB-CognoDB%2FNeo4j-008CC1?style=for-the-badge&logo=neo4j)](https://cognodb.com)
+
+**DepGraph** is a graph-powered security dashboard I designed and built to uncover open-source software supply chain vulnerabilities: multi-hop transitive dependency closures, single-maintainer "Bus Factor" risks, and account compromise blast-radius analysis — all powered by **CognoDB (Neo4j)** and **Cypher**.
 
 ---
 
-## Why a Graph Database?
+## 🌐 Live Production Demos
 
-Three query patterns justify the graph choice:
+- **Live Frontend (Vercel):** [https://frontend-ten-rose-81.vercel.app](https://frontend-ten-rose-81.vercel.app)
+- **Live Backend API (Vercel Serverless):** [https://backend-psi-ivory-26.vercel.app/api/health](https://backend-psi-ivory-26.vercel.app/api/health)
+- **GitHub Repository:** [https://github.com/kumarswamyg2005/DepGraph.git](https://github.com/kumarswamyg2005/DepGraph.git)
 
-**1. Transitive dependency closure** is a recursive set operation.  
-SQL requires a recursive CTE (`WITH RECURSIVE`) that must be re-written per depth level, has no native path semantics, and becomes painful to optimize. In Cypher:
+---
+
+## 🧠 Why I Chose a Graph Database Over SQL
+
+When analyzing software supply chain risk, traditional relational databases hit performance walls. Here are the three primary query patterns that justified choosing a graph database:
+
+### 1. Transitive Dependency Closure (Recursive Sets)
+In SQL, querying deep dependency trees requires complex `WITH RECURSIVE` CTEs with manual depth bounds that cause join explosions. In Cypher, multi-hop traversal is a single, clean pattern:
 
 ```cypher
 MATCH (p:Package {name: $name})-[:DEPENDS_ON*1..5]->(dep:Package)
-RETURN DISTINCT dep.name, dep.ecosystem
+RETURN DISTINCT dep.name, dep.ecosystem, dep.version
 ```
 
-One line. No recursion boilerplate. Depth is a parameter.
+### 2. Bus Factor & Compromise Blast Radius
+Finding shared maintainers and affected packages across variable-length dependency chains requires traversing multi-entity paths (`Developer → MAINTAINS → Package → DEPENDS_ON*0..5 → Package`). In Cypher, this is a single pattern match instead of N self-joins.
 
-**2. Bus-factor / blast-radius queries** require finding shared neighbors across variable-length paths — e.g., "all packages reachable from packages this developer maintains, and all developers who share maintainership of any package in that set." In SQL, this is a join explosion (N self-joins on a junction table, or a correlated subquery per depth). In Cypher, it's a single pattern match with a `*0..5` range.
-
-**3. The interesting output is the *shape* of connections**, not aggregates over rows. Which package is a single point of failure? Which developer's compromise would cascade to 30 downstream packages? These are structural questions — they're what graph databases were built for.
+### 3. Structural Connectivity as First-Class Output
+Supply chain security questions are inherent structural graph questions: *Which single-maintainer package forms a bottleneck for 30 downstream applications?* *Which developer account compromise will cascade across ecosystems?* Graph databases represent these connection shapes natively.
 
 ---
 
-## Data Model
+## 📐 Data Model & Graph Schema
 
 ```mermaid
 graph TD
@@ -35,271 +47,165 @@ graph TD
     Package -->|DEPENDS_ON| Package
     Organization -->|OWNS| Repository
 
-    style Package fill:#1c2d1c,stroke:#22c55e,color:#22c55e
-    style Developer fill:#1a1f2d,stroke:#3b82f6,color:#3b82f6
-    style Repository fill:#2d1a3d,stroke:#a855f7,color:#a855f7
-    style Organization fill:#2d1f10,stroke:#f97316,color:#f97316
+    style Package fill:#064e3b,stroke:#10b981,color:#34d399
+    style Developer fill:#0c4a6e,stroke:#38bdf8,color:#7dd3fc
+    style Repository fill:#4c1d95,stroke:#c084fc,color:#e9d5ff
+    style Organization fill:#7c2d12,stroke:#fb923c,color:#ffedd5
 ```
 
 ### Node Properties
 
-| Label | Properties |
-|-------|-----------|
-| `Package` | `id`, `name`, `ecosystem` (npm/pypi), `version`, `description` |
+| Node Label | Core Properties |
+|------------|-----------------|
+| `Package` | `id`, `name`, `ecosystem` (npm / pypi), `version`, `description` |
 | `Developer` | `id`, `username`, `name`, `github_url` |
 | `Repository` | `id`, `name`, `url`, `stars`, `description` |
 | `Organization` | `id`, `name` |
 
-### Relationship Properties
+### Relationship Types
 
-| Relationship | Properties |
-|-------------|-----------|
-| `DEPENDS_ON` | `version_range`, `dev_only` |
-| `CONTRIBUTES_TO` | `commits` |
-| All others | (none) |
+| Relationship | Key Properties | Description |
+|--------------|----------------|-------------|
+| `DEPENDS_ON` | `version_range`, `dev_only` | Package-to-Package dependency relationship |
+| `MAINTAINS` | — | Developer-to-Package maintainership |
+| `CONTRIBUTES_TO` | `commits` | Developer-to-Repository contributions |
+| `PUBLISHES` | — | Repository-to-Package publication |
+| `MEMBER_OF` | — | Developer organization membership |
 
 ---
 
-## Queries
+## ⚡ Core Security Cypher Queries
 
-### Query 1 — Transitive Dependency Closure
-
-**Plain English:** Given a package name, find every package it depends on, directly or transitively, up to 5 hops away.
-
-**Why it's graph-natural:** Recursive closure over a relationship type. In SQL: a `WITH RECURSIVE` CTE with no shortest-path semantics and manual depth management. In Cypher: one line.
+### 1. Transitive Dependency Closure (`*1..5`)
+Computes every direct and indirect dependency for a target package up to 5 hops deep:
 
 ```cypher
 MATCH (p:Package {name: $name})-[:DEPENDS_ON*1..5]->(dep:Package)
 RETURN DISTINCT dep.name AS name,
                dep.ecosystem AS ecosystem,
-               dep.version AS version,
-               length(r) AS depth
+               dep.version AS version
 ```
 
----
-
-### Query 2 — Bus Factor Analysis
-
-**Plain English:** Find all packages maintained by exactly one developer, ranked by how many other repositories transitively depend on them. These are your highest-risk single points of failure.
-
-**Why it's graph-natural:** Requires (a) filtering by in-degree of a specific relationship type, (b) then doing a reverse variable-length traversal to count indirect dependents. In SQL: two correlated subqueries + a recursive join. In Cypher: a single pattern with list comprehension + variable-length `*1..5`.
+### 2. Bus Factor Risk Analysis
+Identifies packages maintained by exactly **one developer**, ranked by how many repositories depend on them transitively:
 
 ```cypher
 MATCH (p:Package)
 WITH p, [(dev:Developer)-[:MAINTAINS]->(p) | dev] AS maintainers
 WHERE size(maintainers) = 1
 OPTIONAL MATCH (repo:Repository)-[:PUBLISHES]->(src:Package)-[:DEPENDS_ON*1..5]->(p)
-RETURN p.name, maintainers[0].username AS soloMaintainer,
+RETURN p.name AS packageName, maintainers[0].username AS soloMaintainer,
        count(DISTINCT repo) AS dependentRepoCount
 ORDER BY dependentRepoCount DESC
 ```
 
----
-
-### Query 3 — Blast Radius
-
-**Plain English:** Given a developer's username, find: (1) all packages reachable from their directly-maintained packages via any DEPENDS_ON chain, and (2) all other developers who share maintainership of any package in that set. This maps the full compromise surface if this account is taken over.
-
-**Why it's graph-natural:** Cross-entity pattern matching across two relationship types at variable depth. A join explosion in a relational schema.
+### 3. Developer Compromise Blast Radius
+Maps the full cascading impact if a developer account is hijacked — finding all reachable packages and co-maintainers:
 
 ```cypher
-// Part A: reachable packages
-MATCH (dev:Developer {username: $username})
-      -[:MAINTAINS]->(p:Package)-[:DEPENDS_ON*0..5]->(dep:Package)
+// Part A: Reachable packages
+MATCH (dev:Developer {username: $username})-[:MAINTAINS]->(p:Package)-[:DEPENDS_ON*0..5]->(dep:Package)
 RETURN DISTINCT dep.id, dep.name, dep.ecosystem, dep.version
 
-// Part B: co-maintainers
-MATCH (dev:Developer {username: $username})-[:MAINTAINS]->(p:Package)
-      <-[:MAINTAINS]-(other:Developer)
+// Part B: Co-maintainers
+MATCH (dev:Developer {username: $username})-[:MAINTAINS]->(p:Package)<-[:MAINTAINS]-(other:Developer)
 WHERE other.username <> $username
 RETURN DISTINCT other.username, collect(DISTINCT p.name) AS sharedPackages
 ```
 
----
-
-### Query 4 — Shortest Dependency Path
-
-**Plain English:** Find the shortest DEPENDS_ON chain between two packages. Demonstrates why SQL JOIN chains can't answer "what is the minimum path connecting A to B" — they can enumerate all paths (join explosion) but not find the shortest without application-level BFS.
+### 4. Shortest Dependency Path
+Calculates the shortest chain of dependencies between any two packages:
 
 ```cypher
 MATCH (a:Package {name: $from}), (b:Package {name: $to})
 MATCH path = shortestPath((a)-[:DEPENDS_ON*..10]->(b))
-RETURN [n IN nodes(path) | {id: n.id, name: n.name}] AS pathNodes,
-       length(path) AS pathLength
+RETURN [n IN nodes(path) | {id: n.id, name: n.name}] AS pathNodes, length(path) AS pathLength
 ```
 
 ---
 
-### Query 5 — Top Packages by Transitive Dependent Count
+## 🛠️ Tech Stack & Key Design Features
 
-**Plain English:** Rank packages by how many *other* packages depend on them transitively (at depth 1–5). Combined with maintainer count — the intersection of "many dependents" and "one maintainer" is your supply chain's most dangerous packages.
-
-```cypher
-MATCH (dep:Package)
-OPTIONAL MATCH (src:Package)-[:DEPENDS_ON*1..5]->(dep)
-WITH dep, count(DISTINCT src) AS transitiveDepCount
-OPTIONAL MATCH (dev:Developer)-[:MAINTAINS]->(dep)
-RETURN dep.name, dep.ecosystem, transitiveDepCount,
-       count(DISTINCT dev) AS maintainerCount
-ORDER BY transitiveDepCount DESC
-LIMIT 25
-```
+- **Frontend:** React 18, Vite, Tailwind CSS, `react-router-dom`
+- **Visualization Engine:** `react-force-graph-2d` (WebGL canvas, directional particle flows, hover focus mode, auto camera centering)
+- **Backend:** Node.js, Express, official `neo4j-driver`
+- **Database:** CognoDB / Neo4j Cloud Instance
+- **UI Aesthetics:** Custom Security Operations Center (SOC) dark theme with obsidian backgrounds (`#07090e`), glassmorphism panels, and typography powered by **Plus Jakarta Sans** and **JetBrains Mono**.
 
 ---
 
-## Engineered Demo Cases
-
-The seed data includes deliberately hand-crafted scenarios for dramatic query results:
-
-| Developer | Bus-Factor Packages | Why it's dramatic |
-|-----------|--------------------|--------------------|
-| `ghost-maintainer` | lodash, chalk, left-pad, commander, yargs, underscore | 6 major npm packages, each used by dozens of other packages |
-| `pypi-overlord` | requests, urllib3, certifi, chardet, idna | The entire Python HTTP stack — compromise exposes every Python project that makes HTTP calls |
-| `fullstack-solo` | express, body-parser, cors, dotenv, @acme/auth-core | Core Express.js middleware stack |
-
-**5-hop dependency chain (for Query 1 demo):**
-```
-wexa-core → @acme/auth-core → @acme/crypto-utils → @acme/logger → neo-cache → supply-validator
-```
-Search `wexa-core` in Dep Explorer to see this chain.
-
----
-
-## Setup
+## 🏃 Local Development & Setup Guide
 
 ### Prerequisites
 - Node.js 18+
-- A CognoDB (or Neo4j) instance (bolt+s:// or bolt://)
+- A CognoDB (or Neo4j) instance URI (`bolt+s://` or `bolt://`)
 
-### 1. Clone & configure
-
+### 1. Clone & Configure
 ```bash
-git clone <repo>
-cd congodb
-
-# Backend
-cp backend/.env.example backend/.env
-# Edit COGNODB_URI, COGNODB_USER, COGNODB_PASSWORD
-
-# Frontend
-cp frontend/.env.example frontend/.env
-# Edit VITE_API_URL if backend is not on localhost:3001
+git clone https://github.com/kumarswamyg2005/DepGraph.git
+cd DepGraph
 ```
 
-### 2. Seed the database
+### 2. Set Environment Variables
 
+**Backend (`backend/.env`):**
+```env
+PORT=3001
+COGNODB_URI=bolt+s://db-a44a7657.databases.cognodb.com:7687
+COGNODB_USER=cognodb
+COGNODB_PASSWORD=your_password_here
+```
+
+**Frontend (`frontend/.env`):**
+```env
+VITE_API_URL=http://localhost:3001
+```
+
+### 3. Seed Database
 ```bash
 cd scripts
 npm install
-# Copy .env from backend or create a separate .env here
-cp ../backend/.env .env
 node seed.js
 ```
 
-Expected output:
-```
-✅ Seed complete!
-   Packages:   45
-   Developers: 50
-   ...
-```
+### 4. Start Development Servers
 
-### 3. Run the backend
-
+**Start Backend:**
 ```bash
 cd backend
 npm install
 npm run dev
-# → Listening on http://localhost:3001
+# Running on http://localhost:3001
 ```
 
-Verify health: `curl http://localhost:3001/api/health`
-
-### 4. Run the frontend
-
+**Start Frontend:**
 ```bash
 cd frontend
 npm install
 npm run dev
-# → http://localhost:5173
-```
-
-### 5. Test graceful DB degradation
-
-Set `COGNODB_URI=bolt://invalid-host:9999` in `backend/.env`, restart the backend, and reload the frontend. You should see the "Database Unavailable" state on every page — no stack traces.
-
----
-
-## Project Structure
-
-```
-congodb/
-├── backend/
-│   ├── src/
-│   │   ├── db.js              # Single Neo4j driver, graceful degradation
-│   │   ├── index.js           # Express server
-│   │   └── routes/
-│   │       ├── packages.js    # Package list/search/detail
-│   │       ├── developers.js  # Developer list/search/detail
-│   │       └── queries.js     # All 5 Cypher queries as endpoints
-│   ├── .env.example
-│   └── package.json
-├── frontend/
-│   ├── src/
-│   │   ├── components/        # GraphView, SearchPanel, NodeDetail, badges, states
-│   │   ├── pages/             # Home, PackageExplorer, BusFactor, BlastRadius
-│   │   ├── hooks/             # useDbStatus, useGraph
-│   │   ├── lib/api.js         # Typed API client
-│   │   └── App.jsx
-│   ├── .env.example
-│   └── package.json
-├── scripts/
-│   └── seed.js                # Idempotent MERGE-based seed
-├── .gitignore
-└── README.md
+# Running on http://localhost:5173
 ```
 
 ---
 
-## Engineering Notes
+## ☁️ Deployment Guide
 
-- **No string-concatenated Cypher** anywhere — every query uses `session.run(query, params)` with a separate params object.
-- **Connection details from env vars only** — `COGNODB_URI`, `COGNODB_USER`, `COGNODB_PASSWORD`. Real `.env` is gitignored.
-- **Graceful degradation** — `db.js` catches connection failures and sets `connectionStatus = 'error'`; every API endpoint returns `{ error: 'Database unavailable' }` instead of crashing; the frontend renders explicit error states.
-- **Idempotent seed** — 100% `MERGE` statements; safe to run multiple times without duplicating data.
+### Deploying Frontend to Vercel
+1. Import repository on [Vercel](https://vercel.com).
+2. Set Root Directory: `frontend`
+3. Environment Variable: `VITE_API_URL` = `https://backend-psi-ivory-26.vercel.app` (or your Render URL).
+4. Build command: `npm run build`, Output Directory: `dist`.
 
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Graph DB | CognoDB (Neo4j) |
-| Backend | Node.js + Express + `neo4j-driver` |
-| Frontend | React + Vite + Tailwind CSS |
-| Graph Viz | `react-force-graph-2d` (WebGL canvas, smooth particle streams, capped camera bounds `0.4x`–`3.0x`, single-node auto-centering) |
-| Routing | `react-router-dom` |
-| Fonts | Plus Jakarta Sans + JetBrains Mono |
-
+### Deploying Backend to Render
+1. Create a **Web Service** on [Render.com](https://render.com) connecting the repo.
+2. Root Directory: `backend`
+3. Build Command: `npm install`, Start Command: `npm start`.
+4. Add `COGNODB_URI`, `COGNODB_USER`, `COGNODB_PASSWORD` environment variables.
 
 ---
 
-## Hosted Live Demo
+## 👤 Author
 
-- **Live Application (Vercel):** [https://frontend-ten-rose-81.vercel.app](https://frontend-ten-rose-81.vercel.app)
-- **Backend API Health Check (Vercel):** [https://backend-psi-ivory-26.vercel.app/api/health](https://backend-psi-ivory-26.vercel.app/api/health)
-- **GitHub Repository:** [https://github.com/kumarswamyg2005/DepGraph.git](https://github.com/kumarswamyg2005/DepGraph.git)
-
----
-
-## Deployment Guide
-
-### Vercel (Frontend & Backend Serverless)
-- **Frontend Deployment:** Run `vercel --prod` from `/frontend`. Set `VITE_API_URL=https://backend-psi-ivory-26.vercel.app`.
-- **Backend Deployment:** Run `vercel --prod` from `/backend`. Set `COGNODB_URI`, `COGNODB_USER`, and `COGNODB_PASSWORD` in Vercel project environment variables.
-
-### Render (Standalone Node Service)
-- **Backend Service:** Connect `/backend` directory on [Render.com](https://render.com). Build command `npm install`, Start command `npm start`. Add `COGNODB_URI`, `COGNODB_USER`, and `COGNODB_PASSWORD` to environment.
-
-> Keep the CognoDB instance running post-submission.
-
+Developed by **Kumaraswamy**  
+- **GitHub:** [@kumarswamyg2005](https://github.com/kumarswamyg2005)  
+- **Repository:** [DepGraph](https://github.com/kumarswamyg2005/DepGraph)
