@@ -45,9 +45,21 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
   const containerRef = useRef();
   const [width, setWidth] = useState(800);
   const [tooltip, setTooltip] = useState(null);
-  const [hoveredId, setHoveredId] = useState(null);
+  const [hoveredNode, setHoveredNode] = useState(null);
+  const [animTime, setAnimTime] = useState(0);
 
   const busFactorSet = React.useMemo(() => new Set(busFactorIds), [busFactorIds]);
+
+  // Continuously drive pulse animation time
+  useEffect(() => {
+    let animId;
+    const loop = () => {
+      setAnimTime(Date.now());
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
+  }, []);
 
   // Sanitize graph data — remove nulls, ensure all link endpoints exist
   const safeData = React.useMemo(() => {
@@ -68,6 +80,27 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
     return { nodes, links };
   }, [graphData]);
 
+  // Compute set of highlighted nodes & links when hovering a node
+  const { highlightNodes, highlightLinks } = React.useMemo(() => {
+    const hNodes = new Set();
+    const hLinks = new Set();
+
+    if (hoveredNode) {
+      hNodes.add(String(hoveredNode.id));
+      safeData.links.forEach((link) => {
+        const srcId = String(link.source?.id ?? link.source);
+        const tgtId = String(link.target?.id ?? link.target);
+        if (srcId === String(hoveredNode.id) || tgtId === String(hoveredNode.id)) {
+          hLinks.add(link);
+          hNodes.add(srcId);
+          hNodes.add(tgtId);
+        }
+      });
+    }
+
+    return { highlightNodes: hNodes, highlightLinks: hLinks };
+  }, [hoveredNode, safeData]);
+
   // Responsive width observer
   useEffect(() => {
     if (!containerRef.current) return;
@@ -78,180 +111,226 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
     return () => ro.disconnect();
   }, []);
 
-  // Fit to view after data loads
+  // Fit to view & configure D3 forces on data load
   useEffect(() => {
     if (fgRef.current && safeData.nodes.length > 0) {
       setTimeout(() => {
-        try { fgRef.current.zoomToFit(400, 40); } catch {}
-      }, 600);
+        try {
+          fgRef.current.zoomToFit(400, 40);
+          // Fine-tune D3 forces for balanced layout
+          fgRef.current.d3Force('charge')?.strength(-160);
+          fgRef.current.d3Force('link')?.distance(65);
+        } catch {}
+      }, 500);
     }
   }, [safeData]);
 
-  const drawNode = useCallback((node, ctx, globalScale) => {
-    if (node.x == null || node.y == null) return;
+  // Node renderer with radial glow, pulse animations, and focus dimming
+  const drawNode = useCallback(
+    (node, ctx, globalScale) => {
+      if (node.x == null || node.y == null) return;
 
-    const r = NODE_RADIUS[node.type] || 6;
-    const color = getColor(node, busFactorSet);
-    const isHovered = node.id === hoveredId;
-    const isBusFactor = busFactorSet.has(node.id);
+      const nodeIdStr = String(node.id);
+      const isHovered = hoveredNode?.id === node.id;
+      const isHighlighted = !hoveredNode || highlightNodes.has(nodeIdStr);
+      const isBusFactor = busFactorSet.has(node.id);
+      const isRoot = node.isRoot;
 
-    // Risk halo rings
-    if (isBusFactor) {
+      const r = (NODE_RADIUS[node.type] || 6) * (isHovered ? 1.3 : 1);
+      const color = getColor(node, busFactorSet);
+
+      ctx.save();
+      ctx.globalAlpha = isHighlighted ? 1.0 : 0.15;
+
+      // 1. Outer Radial Glow
+      const glowR = r * (isHovered ? 3.5 : isBusFactor || isRoot ? 3.0 : 2.0);
+      const glow = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, glowR);
+      glow.addColorStop(0, `${color}bb`);
+      glow.addColorStop(0.5, `${color}44`);
+      glow.addColorStop(1, 'transparent');
       ctx.beginPath();
-      ctx.arc(node.x, node.y, r + 7, 0, 2 * Math.PI);
-      ctx.fillStyle = '#ff44440a';
+      ctx.arc(node.x, node.y, glowR, 0, 2 * Math.PI);
+      ctx.fillStyle = glow;
       ctx.fill();
+
+      // 2. Animated Radar Pulse Ring for Bus Factor & Root nodes
+      if (isBusFactor || isRoot) {
+        const pulse = (Math.sin(animTime / 250) + 1) / 2; // 0..1
+        const pulseR = r + 4 + pulse * 6;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, pulseR, 0, 2 * Math.PI);
+        ctx.strokeStyle = isBusFactor ? `rgba(255, 68, 68, ${0.8 - pulse * 0.5})` : `rgba(34, 197, 94, ${0.8 - pulse * 0.5})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // 3. Node Core Circle
       ctx.beginPath();
-      ctx.arc(node.x, node.y, r + 4, 0, 2 * Math.PI);
-      ctx.strokeStyle = '#ff444455';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-    }
+      ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+      ctx.fillStyle = color;
+      ctx.fill();
 
-    // Hover glow
-    if (isHovered) {
+      // Inner shiny highlight
       ctx.beginPath();
-      ctx.arc(node.x, node.y, r + 4, 0, 2 * Math.PI);
-      ctx.strokeStyle = '#ffffff60';
-      ctx.lineWidth = 1.5;
+      ctx.arc(node.x - r * 0.25, node.y - r * 0.25, r * 0.45, 0, 2 * Math.PI);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.fill();
+
+      // 4. Node Label
+      const label = (node.name || node.id || '').replace(/^@[^/]+\//, '');
+      const short = label.length > 20 ? label.slice(0, 19) + '…' : label;
+      const fontSize = Math.min(11, Math.max(7, 10 / globalScale));
+      ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      const tw = ctx.measureText(short).width;
+      const padding = 3;
+
+      // Label background card
+      ctx.fillStyle = 'rgba(10, 10, 15, 0.85)';
+      ctx.fillRect(node.x - tw / 2 - padding, node.y + r + 3, tw + padding * 2, fontSize + 3);
+      ctx.strokeStyle = isHovered ? color : 'rgba(255, 255, 255, 0.1)';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(node.x - tw / 2 - padding, node.y + r + 3, tw + padding * 2, fontSize + 3);
+
+      // Label text
+      ctx.fillStyle = isHovered ? '#ffffff' : isBusFactor ? '#ff9999' : '#d1d5db';
+      ctx.fillText(short, node.x, node.y + r + 4);
+
+      ctx.restore();
+    },
+    [busFactorSet, hoveredNode, highlightNodes, animTime]
+  );
+
+  // Link renderer with dynamic flow animation and hover focus
+  const drawLink = useCallback(
+    (link, ctx) => {
+      const src = link.source;
+      const tgt = link.target;
+      if (!src?.x || !tgt?.x) return;
+
+      const isHighlighted = !hoveredNode || highlightLinks.has(link);
+      const color = EDGE_COLORS[link.type] || '#60a5fa';
+      const isMaintains = link.type === 'MAINTAINS';
+
+      ctx.save();
+      ctx.globalAlpha = isHighlighted ? (hoveredNode ? 0.95 : 0.65) : 0.08;
+      ctx.beginPath();
+      ctx.moveTo(src.x, src.y);
+      ctx.lineTo(tgt.x, tgt.y);
+      ctx.strokeStyle = isHighlighted && hoveredNode ? '#ffffff' : color;
+      ctx.lineWidth = isHighlighted && hoveredNode ? 2.5 : isMaintains ? 2 : 1.5;
+      if (!isMaintains && !isHighlighted) ctx.setLineDash([4, 4]);
       ctx.stroke();
-    }
-
-    // Node circle with gradient-like shading
-    ctx.beginPath();
-    ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = color;
-    ctx.fill();
-
-    // Inner highlight
-    ctx.beginPath();
-    ctx.arc(node.x, node.y - r * 0.2, r * 0.5, 0, 2 * Math.PI);
-    ctx.fillStyle = `${color}55`;
-    ctx.fill();
-
-    // Label — always show when zoomed in, show for all nodes at normal zoom
-    const label = (node.name || node.id || '').replace(/^@[^/]+\//, '');
-    const short = label.length > 18 ? label.slice(0, 17) + '…' : label;
-    const fontSize = Math.min(10, Math.max(6, 9 / globalScale));
-    ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-
-    // Label background
-    const tw = ctx.measureText(short).width;
-    const padding = 2;
-    ctx.fillStyle = '#0a0a0fcc';
-    ctx.fillRect(node.x - tw / 2 - padding, node.y + r + 2, tw + padding * 2, fontSize + 2);
-
-    // Label text
-    ctx.fillStyle = isHovered ? '#ffffff' : isBusFactor ? '#ff8888' : '#c8c8d8';
-    ctx.fillText(short, node.x, node.y + r + 3);
-  }, [busFactorSet, hoveredId]);
-
-  const drawLink = useCallback((link, ctx) => {
-    const src = link.source;
-    const tgt = link.target;
-    if (!src?.x || !tgt?.x) return;
-
-    const color = EDGE_COLORS[link.type] || '#60a5fa';
-    const isMaintains = link.type === 'MAINTAINS';
-    const lw = isMaintains ? 2 : 1.5;
-    const alpha = isMaintains ? 0.7 : 0.5;
-
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.beginPath();
-    ctx.moveTo(src.x, src.y);
-    ctx.lineTo(tgt.x, tgt.y);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = lw;
-    if (!isMaintains) ctx.setLineDash([5, 4]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-  }, []);
+      ctx.setLineDash([]);
+      ctx.restore();
+    },
+    [hoveredNode, highlightLinks]
+  );
 
   if (!safeData.nodes.length) return null;
 
   return (
-    <div ref={containerRef} className="graph-container relative overflow-hidden" style={{ height }}>
+    <div ref={containerRef} className="graph-container relative overflow-hidden rounded-xl border border-border-subtle bg-bg-panel shadow-2xl" style={{ height }}>
+      {/* Background Radar Grid Pattern */}
+      <div className="absolute inset-0 pointer-events-none opacity-20 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]" />
+
       <ForceGraph2D
         ref={fgRef}
         graphData={safeData}
         width={width}
         height={height}
-        backgroundColor="#0a0a0f"
+        backgroundColor="#090d16"
         nodeCanvasObject={drawNode}
         nodeCanvasObjectMode={() => 'replace'}
         linkCanvasObject={drawLink}
         linkCanvasObjectMode={() => 'replace'}
-        onNodeClick={(node) => onNodeClick && onNodeClick(node)}
+        linkDirectionalParticles={(link) => (highlightLinks.has(link) || !hoveredNode ? 2 : 0)}
+        linkDirectionalParticleSpeed={0.007}
+        linkDirectionalParticleWidth={(link) => (highlightLinks.has(link) ? 3.5 : 2)}
+        linkDirectionalParticleColor={(link) => EDGE_COLORS[link.type] || '#60a5fa'}
+        linkDirectionalArrowLength={4.5}
+        linkDirectionalArrowRelPos={0.95}
+        linkDirectionalArrowColor={(link) => EDGE_COLORS[link.type] || '#60a5fa'}
+        onNodeClick={(node) => {
+          if (fgRef.current && node.x != null && node.y != null) {
+            fgRef.current.centerAt(node.x, node.y, 450);
+            fgRef.current.zoom(2.2, 450);
+          }
+          if (onNodeClick) onNodeClick(node);
+        }}
         onNodeHover={(node) => {
-          setHoveredId(node?.id ?? null);
-          setTooltip(node
-            ? { name: node.name, type: node.type, ecosystem: node.ecosystem, version: node.version }
-            : null
+          setHoveredNode(node || null);
+          setTooltip(
+            node
+              ? { name: node.name, type: node.type, ecosystem: node.ecosystem, version: node.version }
+              : null
           );
           document.body.style.cursor = node ? 'pointer' : 'default';
         }}
         enableNodeDrag
         enableZoomInteraction
         enablePanInteraction
-        cooldownTicks={150}
+        cooldownTicks={180}
         nodeRelSize={4}
-        linkDirectionalArrowLength={5}
-        linkDirectionalArrowRelPos={1}
-        linkDirectionalArrowColor={(link) => EDGE_COLORS[link.type] || '#30304880'}
-        d3VelocityDecay={0.25}
+        d3VelocityDecay={0.2}
         d3AlphaDecay={0.015}
-        warmupTicks={30}
+        warmupTicks={40}
       />
 
-      {/* Legend */}
-      <div className="absolute top-3 left-3 panel p-2 space-y-1">
+      {/* Glassmorphic Legend Overlay */}
+      <div className="absolute top-3 left-3 panel p-2.5 backdrop-blur-md bg-bg-panel/80 border border-border-subtle shadow-lg space-y-1.5 rounded-lg">
         {Object.entries(NODE_COLORS).map(([type, color]) => (
           <div key={type} className="flex items-center gap-2 text-2xs font-mono text-text-muted">
-            <div className="rounded-full flex-shrink-0" style={{ width: 8, height: 8, background: color }} />
+            <div className="rounded-full flex-shrink-0 shadow-[0_0_6px_rgba(255,255,255,0.3)]" style={{ width: 8, height: 8, background: color }} />
             {type}
           </div>
         ))}
         <div className="flex items-center gap-2 text-2xs font-mono text-risk">
-          <div className="rounded-full flex-shrink-0 ring-1 ring-risk" style={{ width: 8, height: 8, background: BUS_FACTOR_COLOR }} />
-          Bus Factor
+          <div className="rounded-full flex-shrink-0 ring-1 ring-risk shadow-[0_0_8px_#ff4444]" style={{ width: 8, height: 8, background: BUS_FACTOR_COLOR }} />
+          Bus Factor Risk
         </div>
       </div>
 
-      {/* Node + edge count */}
-      <div className="absolute top-3 right-3 panel px-2.5 py-1">
-        <span className="text-2xs font-mono text-text-dim">
-          {safeData.nodes.length}N · {safeData.links.length}E
+      {/* Node + edge count pill */}
+      <div className="absolute top-3 right-3 panel px-3 py-1 backdrop-blur-md bg-bg-panel/80 border border-border-subtle shadow-md">
+        <span className="text-2xs font-mono text-text-dim flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-safe animate-pulse" />
+          {safeData.nodes.length} Nodes · {safeData.links.length} Edges
         </span>
       </div>
 
-      {/* Zoom controls */}
-      <div className="absolute bottom-3 right-3 flex flex-col gap-1">
+      {/* Modern Zoom Controls */}
+      <div className="absolute bottom-3 right-3 flex flex-col gap-1.5">
         <button
-          className="panel w-7 h-7 flex items-center justify-center text-text-muted hover:text-text-primary font-mono text-sm"
+          className="panel w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary backdrop-blur-md bg-bg-panel/80 border border-border-subtle shadow-md rounded-md font-mono text-base transition-colors"
           onClick={() => fgRef.current?.zoom(fgRef.current.zoom() * 1.3, 200)}
-          title="Zoom in"
-        >+</button>
+          title="Zoom In"
+        >
+          +
+        </button>
         <button
-          className="panel w-7 h-7 flex items-center justify-center text-text-muted hover:text-text-primary font-mono text-sm"
+          className="panel w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary backdrop-blur-md bg-bg-panel/80 border border-border-subtle shadow-md rounded-md font-mono text-base transition-colors"
           onClick={() => fgRef.current?.zoom(fgRef.current.zoom() * 0.75, 200)}
-          title="Zoom out"
-        >−</button>
+          title="Zoom Out"
+        >
+          −
+        </button>
         <button
-          className="panel w-7 h-7 flex items-center justify-center text-text-muted hover:text-text-primary font-mono text-xs"
+          className="panel w-8 h-8 flex items-center justify-center text-text-muted hover:text-text-primary backdrop-blur-md bg-bg-panel/80 border border-border-subtle shadow-md rounded-md font-mono text-xs transition-colors"
           onClick={() => fgRef.current?.zoomToFit(400, 40)}
-          title="Fit to view"
-        >⊡</button>
+          title="Reset View"
+        >
+          ⊡
+        </button>
       </div>
 
-      {/* Hover tooltip */}
+      {/* Tooltip */}
       {tooltip && (
-        <div className="tooltip" style={{ bottom: 16, left: 16 }}>
-          <div className="font-mono text-text-primary text-xs font-medium">{tooltip.name}</div>
-          <div className="text-text-muted text-2xs mt-0.5 font-mono">
+        <div className="tooltip pointer-events-none font-mono text-xs shadow-xl" style={{ bottom: 16, left: 16 }}>
+          <div className="font-semibold text-text-primary">{tooltip.name}</div>
+          <div className="text-text-muted text-2xs mt-0.5">
             {tooltip.type}
             {tooltip.ecosystem && ` · ${tooltip.ecosystem}`}
             {tooltip.version && ` · v${tooltip.version}`}
