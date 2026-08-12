@@ -135,14 +135,20 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
     if (fgRef.current && safeData.nodes.length > 0) {
       setTimeout(() => {
         try {
-          fgRef.current.zoomToFit(400, 40);
+          if (safeData.nodes.length === 1) {
+            fgRef.current.centerAt(0, 0, 400);
+            fgRef.current.zoom(1.8, 400);
+          } else {
+            fgRef.current.zoomToFit(400, 60);
+          }
           // Fine-tune D3 forces for balanced layout
           fgRef.current.d3Force('charge')?.strength(-160);
           fgRef.current.d3Force('link')?.distance(65);
         } catch {}
-      }, 500);
+      }, 400);
     }
   }, [safeData]);
+
 
   // Node renderer with radial glow, pulse animations, and focus dimming
   const drawNode = useCallback(
@@ -162,7 +168,7 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
       ctx.globalAlpha = isHighlighted ? 1.0 : 0.15;
 
       // 1. Outer Radial Glow
-      const glowR = r * (isHovered ? 3.5 : isBusFactor || isRoot ? 3.0 : 2.0);
+      const glowR = Math.min(r * (isHovered ? 3.0 : isBusFactor || isRoot ? 2.5 : 1.8), 28);
       const glow = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, glowR);
       glow.addColorStop(0, `${color}bb`);
       glow.addColorStop(0.5, `${color}44`);
@@ -171,6 +177,7 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
       ctx.arc(node.x, node.y, glowR, 0, 2 * Math.PI);
       ctx.fillStyle = glow;
       ctx.fill();
+
 
       // 2. Animated Radar Pulse Ring for Bus Factor & Root nodes
       if (isBusFactor || isRoot) {
@@ -261,7 +268,10 @@ export function GraphView({ graphData, height = 520, onNodeClick, busFactorIds =
         width={width}
         height={height}
         backgroundColor="#090d16"
+        minZoom={0.4}
+        maxZoom={3.0}
         nodeCanvasObject={drawNode}
+
         nodeCanvasObjectMode={() => 'replace'}
         linkCanvasObject={drawLink}
         linkCanvasObjectMode={() => 'replace'}

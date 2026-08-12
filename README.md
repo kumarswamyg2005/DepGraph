@@ -277,9 +277,10 @@ congodb/
 | Graph DB | CognoDB (Neo4j) |
 | Backend | Node.js + Express + `neo4j-driver` |
 | Frontend | React + Vite + Tailwind CSS |
-| Graph viz | `react-force-graph-2d` (WebGL canvas) |
+| Graph Viz | `react-force-graph-2d` (WebGL canvas, smooth particle streams, capped camera bounds `0.4x`–`3.0x`, single-node auto-centering) |
 | Routing | `react-router-dom` |
-| Fonts | IBM Plex Sans + JetBrains Mono |
+| Fonts | Plus Jakarta Sans + JetBrains Mono |
+
 
 ---
 
